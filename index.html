@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#d9480f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Rebar Length Calculator v3.1</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#1b2430;--muted:#6b7686;--line:#dde1e7;--accent:#d9480f;--accent-t:#fff;--warn:#e03131;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181e;--card:#1e242c;--text:#e8ebef;--muted:#9aa5b4;--line:#323a45;--accent:#ff7a3d;--accent-t:#1a1206;--warn:#ff6b6b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14181e;--card:#1e242c;--text:#e8ebef;--muted:#9aa5b4;--line:#323a45;--accent:#ff7a3d;--accent-t:#1a1206;--warn:#ff6b6b;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.inp{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:16px}
+.inp:focus{outline:2px solid var(--accent)}
+.btn{border-radius:10px;padding:10px 14px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--text)}
+.btn-p{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.tab{flex:1;padding:10px 6px;font-weight:600;border-bottom:3px solid transparent;color:var(--muted)}
+.tab.on{color:var(--accent);border-color:var(--accent)}
+.muted{color:var(--muted)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+th{color:var(--muted);font-weight:600}
+.bar{display:flex;height:28px;border-radius:6px;overflow:hidden;background:var(--line)}
+.seg{display:flex;align-items:center;justify-content:center;font-size:11px;color:#111;overflow:hidden;border-right:1px solid rgba(0,0,0,.35);white-space:nowrap}
+.kerf{background:#000;width:1px;flex:none}
+.rem{background:repeating-linear-gradient(45deg,var(--card),var(--card) 4px,var(--line) 4px,var(--line) 8px);color:var(--muted)}
+.rem.use{background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(64,192,87,.45) 4px,rgba(64,192,87,.45) 8px);color:#40c057;font-weight:700}
+</style>
+</head>
+<body>
+<main class="max-w-4xl mx-auto p-4 space-y-4">
+  <header class="flex items-baseline justify-between gap-2">
+    <div><h1 class="text-2xl font-bold">Rebar Length Calculator</h1>
+    <p class="muted text-sm">Cut lengths from your member inputs feed the stock-bar cutting plan. All dimensions in mm.</p></div>
+    <span class="text-xs font-bold px-2 py-1 rounded-full" style="background:var(--accent);color:var(--accent-t)">v3.1</span>
+  </header>
+
+  <section class="card">
+    <h2 class="font-bold mb-2 text-sm">Project settings</h2>
+    <div id="glob" class="grid grid-cols-2 sm:grid-cols-6 gap-3"></div>
+  </section>
+
+  <nav class="flex card !p-0 overflow-hidden" id="tabs"></nav>
+
+  <section class="card space-y-3">
+    <div id="form" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+    <p id="note" class="muted text-xs"></p>
+    <div class="tw"><table id="res"></table></div>
+    <div class="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+      <button id="add" class="btn btn-p">Add to schedule</button>
+      <span id="msg" class="text-sm muted"></span>
+    </div>
+  </section>
+
+  <section class="card space-y-3">
+    <div class="flex justify-between items-center"><h2 class="font-bold">Project bar schedule</h2>
+      <button id="clear" class="btn text-sm">Clear all</button></div>
+    <div class="tw"><table id="sched"></table></div>
+    </section>
+  <section class="card space-y-3">
+    <h2 class="font-bold">Cutting plan (stock bars)</h2>
+    <div id="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+    <div id="opt" class="space-y-6"></div>
+    <p class="muted text-xs">Every cut length in the schedule is packed into stock bars per diameter (kerf included). Black ticks = saw cuts; hatched = remnant, green = usable off-cut. Weight = d²/162.2 kg/m.</p>
+  </section>
+  <p class="muted text-xs text-center">Rebar Length Calculator v3.1 · v2.0 added the bar tabs, v1.0 was the cut-list optimizer</p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const G = [["stock", "Stock bar length", 12000], ["kerf", "Saw kerf", 3], ["ded", "90° bend deduction (×d)", 2], ["lap", "Lap length (×d)", 40], ["hook", "Link hook length (×d)", 10], ["minUse", "Min. usable off-cut", 500]];
+const g = {}; G.forEach(([k, , v]) => g[k] = v);
+
+// Field: [id, label, default]. Calc returns rows {desc, dia, per, len}; per = bars per member.
+const T = {
+  Base: { p: "F", note: "Bottom mat bars are bent up at both ends. Starter bar = (depth − cover − 2 mat bars) + neck height + projection + foot, less one bend deduction.",
+    f: [["label", "Footing mark", "F1", 1], ["qty", "No. of footings", 1], ["L", "Length", 1500], ["B", "Width", 1500], ["D", "Depth", 450], ["c", "Cover", 50],
+      ["dM", "Mat bar dia", 16], ["sp", "Mat spacing", 150], ["bend", "Bend-up length (each end)", 300],
+      ["nS", "Starter bars / column", 8], ["dS", "Starter dia", 16], ["neck", "Neck height", 600], ["proj", "Projection above neck", 800], ["foot", "Starter foot (bend) length", 300]],
+    calc: v => [
+      { desc: "Bars along length", dia: v.dM, per: Math.floor((v.B - 2 * v.c) / v.sp) + 1, len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dM },
+      { desc: "Bars along width", dia: v.dM, per: Math.floor((v.L - 2 * v.c) / v.sp) + 1, len: v.B - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dM },
+      { desc: "Column starter bars", dia: v.dS, per: v.nS, len: v.D - v.c - 2 * v.dM + v.neck + v.proj + v.foot - g.ded * v.dS }] },
+  Column: { p: "C", note: "Main bar = height + lap + foot (if any) − bend deduction. Link = 2(A+B) + 2 hooks − 3 bend deductions; count = height ÷ spacing + 1.",
+    f: [["label", "Column mark", "C1", 1], ["qty", "No. of columns", 1], ["b", "Width", 230], ["h", "Depth", 230], ["H", "Column height", 3000], ["c", "Cover", 25],
+      ["n", "Main bars", 6], ["dM", "Main bar dia", 16], ["foot", "Bottom foot length (0 = none)", 0], ["proj", "Extra projection at top", 0],
+      ["dL", "Link dia", 8], ["sp", "Link spacing", 150]],
+    calc: v => [
+      { desc: "Main bars", dia: v.dM, per: v.n, len: v.H + g.lap * v.dM + v.proj + v.foot - (v.foot > 0 ? g.ded * v.dM : 0) },
+      { desc: "Links", dia: v.dL, per: Math.ceil(v.H / v.sp) + 1, len: 2 * (v.b - 2 * v.c + v.h - 2 * v.c) + 2 * g.hook * v.dL - 3 * g.ded * v.dL }] },
+  Beam: { p: "B", note: "Top/bottom bars = length − covers + 2 end bends − 2 bend deductions. Extra support bars are straight at the length you enter.",
+    f: [["label", "Beam mark", "B1", 1], ["qty", "No. of beams", 1], ["L", "Beam length (c/c incl. supports)", 4000], ["b", "Width", 230], ["h", "Depth", 450], ["c", "Cover", 25],
+      ["nT", "Top bars", 2], ["dT", "Top dia", 12], ["nB", "Bottom bars", 3], ["dB", "Bottom dia", 16], ["bend", "End bend length", 300],
+      ["nX", "Extra bars / support", 2], ["dX", "Extra bar dia", 16], ["lenX", "Extra bar length", 1500], ["sup", "No. of supports", 2],
+      ["dL", "Link dia", 8], ["sp", "Link spacing", 150]],
+    calc: v => [
+      { desc: "Top bars", dia: v.dT, per: v.nT, len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dT },
+      { desc: "Bottom bars", dia: v.dB, per: v.nB, len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dB },
+      { desc: "Extra support bars", dia: v.dX, per: v.nX * v.sup, len: v.lenX },
+      { desc: "Links", dia: v.dL, per: Math.ceil(v.L / v.sp) + 1, len: 2 * (v.b - 2 * v.c + v.h - 2 * v.c) + 2 * g.hook * v.dL - 3 * g.ded * v.dL }] },
+  Slab: { p: "S", note: "Main bars span the short side with end bends; distribution bars are straight. Set top spacing to 0 for no top mesh.",
+    f: [["label", "Slab mark", "S1", 1], ["qty", "No. of slabs", 1], ["Lx", "Long side", 5000], ["Ly", "Short side", 4000], ["c", "Cover", 20],
+      ["dM", "Main bar dia", 12], ["spM", "Main spacing", 150], ["bend", "Main bar end bend", 150], ["dD", "Distribution dia", 10], ["spD", "Distribution spacing", 200],
+      ["dT", "Top mesh dia", 10], ["spT", "Top mesh spacing (0 = none)", 0]],
+    calc: v => {
+      const r = [
+        { desc: "Main bars", dia: v.dM, per: Math.floor((v.Lx - 2 * v.c) / v.spM) + 1, len: v.Ly - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dM },
+        { desc: "Distribution bars", dia: v.dD, per: Math.floor((v.Ly - 2 * v.c) / v.spD) + 1, len: v.Lx - 2 * v.c }];
+      if (v.spT > 0) r.push(
+        { desc: "Top mesh (along long side)", dia: v.dT, per: Math.floor((v.Ly - 2 * v.c) / v.spT) + 1, len: v.Lx - 2 * v.c },
+        { desc: "Top mesh (along short side)", dia: v.dT, per: Math.floor((v.Lx - 2 * v.c) / v.spT) + 1, len: v.Ly - 2 * v.c });
+      return r;
+    } }
+};
+const vals = {}; Object.entries(T).forEach(([k, t]) => { vals[k] = {}; t.f.forEach(([id, , d]) => vals[k][id] = d); });
+let cur = "Base", rows = [], sched = [];
+try { sched = JSON.parse(localStorage.getItem("rebar_v2_sched") || "[]"); } catch (e) { sched = []; }
+const save = () => { try { localStorage.setItem("rebar_v2_sched", JSON.stringify(sched)); } catch (e) {} };
+const m = x => (x / 1000).toFixed(2), kgm = d => d * d / 162.2;
+
+function buildTabs() {
+  $("tabs").innerHTML = Object.keys(T).map(k => `<button class="tab ${k === cur ? "on" : ""}" data-t="${k}">${k}</button>`).join("");
+  $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { cur = b.dataset.t; buildTabs(); buildForm(); calc(); });
+}
+function buildForm() {
+  $("form").innerHTML = T[cur].f.map(([id, lab]) =>
+    `<label class="block text-xs">${lab}<input data-id="${id}" class="inp mt-1" ${id === "label" ? 'type="text"' : 'type="number" inputmode="decimal" min="0" step="any"'} value="${esc(vals[cur][id])}"></label>`).join("");
+  $("form").querySelectorAll("input").forEach(i => i.oninput = () => { vals[cur][i.dataset.id] = i.dataset.id === "label" ? i.value : +i.value; calc(); });
+  $("note").textContent = T[cur].note;
+}
+function calc() {
+  const v = vals[cur], q = v.qty || 1;
+  rows = T[cur].calc(v).filter(r => r.per > 0 && r.len > 0 && r.dia > 0).map((r, i) => ({ ...r, mark: T[cur].p + (i + 1), qty: r.per * q, tab: cur, label: v.label }));
+  const tl = rows.reduce((a, r) => a + r.qty * r.len / 1000, 0), tw = rows.reduce((a, r) => a + r.qty * r.len / 1000 * kgm(r.dia), 0);
+  $("res").innerHTML = `<tr><th>Mark</th><th>Description</th><th>Ø</th><th>Qty</th><th>Cut length (m)</th><th>Total (m)</th><th>kg</th></tr>` +
+    rows.map(r => `<tr><td>${r.mark}</td><td>${r.desc}</td><td>${r.dia}</td><td>${r.qty}</td><td>${m(r.len)}</td><td>${(r.qty * r.len / 1000).toFixed(1)}</td><td>${(r.qty * r.len / 1000 * kgm(r.dia)).toFixed(1)}</td></tr>`).join("") +
+    `<tr style="font-weight:700"><td colspan="5">Total for ${esc(v.label)} × ${q}</td><td>${tl.toFixed(1)}</td><td>${tw.toFixed(1)}</td></tr>`;
+}
+function pack(order, cap, mode) {
+  const bins = [];
+  for (const it of order) {
+    let b = -1, br = 1e18;
+    for (let i = 0; i < bins.length; i++) { const rm = cap - bins[i].used; if (rm >= it.size - 1e-9) { if (mode === "ff") { b = i; break; } if (rm < br) { br = rm; b = i; } } }
+    if (b < 0) { bins.push({ used: 0, items: [] }); b = bins.length - 1; }
+    bins[b].used += it.size; bins[b].items.push(it);
+  }
+  return bins;
+}
+function optimize(items, cap) {
+  const s = [...items].sort((a, b) => b.len - a.len); let best = null, bs = 1e30;
+  const t = (o, md) => { const b = pack(o, cap, md), sc = b.length * 1e12 - b.reduce((a, x) => a + (cap - x.used) ** 2, 0); if (sc < bs) { bs = sc; best = b; } };
+  t(s, "ff"); t(s, "bf");
+  const n = Math.min(300, Math.floor(40000 / s.length));
+  for (let i = 0; i < n; i++) t(s.map(x => ({ x, k: x.len * (1 + Math.random() * .2) })).sort((a, b) => b.k - a.k).map(o => o.x), i % 2 ? "bf" : "ff");
+  return best;
+}
+const hue = len => `hsl(${([...String(Math.round(len))].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7) * 47) % 360} 70% 70%)`;
+function renderSched() {
+  $("sched").innerHTML = sched.length ? `<tr><th>Member</th><th>Description</th><th>Ø</th><th>Qty</th><th>Cut (m)</th><th></th></tr>` +
+    sched.map((r, i) => `<tr><td>${esc(r.label)} (${r.tab})</td><td>${r.desc}</td><td>${r.dia}</td><td>${r.qty}</td><td>${m(r.len)}</td><td><button class="btn !py-0 !px-2" data-i="${i}">✕</button></td></tr>`).join("")
+    : `<tr><td class="muted">Nothing added yet.</td></tr>`;
+  $("sched").querySelectorAll("button").forEach(b => b.onclick = () => { sched.splice(+b.dataset.i, 1); save(); renderSched(); });
+
+  const by = {}; sched.forEach(r => (by[r.dia] = by[r.dia] || []).push(r));
+  const cap = g.stock + g.kerf; let html = "", tB = 0, tW = 0, tL = 0, tUse = 0, tKg = 0;
+  Object.keys(by).sort((a, b) => a - b).forEach(d => {
+    const items = []; by[d].forEach(r => { for (let i = 0; i < r.qty; i++) items.push({ len: r.len, size: r.len + g.kerf, tag: r.label + " " + r.desc }); });
+    const bad = items.filter(i => i.len > g.stock);
+    if (bad.length) { html += `<div class="text-sm" style="color:var(--warn)">Ø${d}: ${bad.length} piece(s) are longer than the stock bar (${m(bad[0].len)} m). Add laps or raise the stock length.</div>`; return; }
+    const bins = optimize(items, cap), gr = new Map(), rc = {}; let cutSum = 0, use = 0;
+    bins.forEach(b => {
+      const cuts = [...b.items].sort((a, c) => c.len - a.len || (a.tag < c.tag ? -1 : 1));
+      const sum = cuts.reduce((a, c) => a + c.len, 0), free = cap - b.used, rem = free > g.kerf + 1e-6 ? free - g.kerf : 0;
+      cutSum += sum;
+      if (rem > 0) { const k = rem.toFixed(0); rc[k] = (rc[k] || 0) + 1; if (rem >= g.minUse) use += rem; }
+      const key = cuts.map(c => c.len + c.tag).join("|") + "#" + rem.toFixed(0);
+      if (!gr.has(key)) gr.set(key, { cuts, rem, n: 0 }); gr.get(key).n++;
+    });
+    const n = bins.length, lb = Math.ceil(items.reduce((a, i) => a + i.size, 0) / cap - 1e-9), waste = n * g.stock - cutSum;
+    tB += n; tW += waste; tL += n * g.stock; tUse += use; tKg += n * g.stock / 1000 * kgm(+d);
+    const pats = [...gr.values()].sort((a, b) => b.n - a.n).map(p => {
+      const cnt = {}; p.cuts.forEach(c => { const k = m(c.len) + " m · " + c.tag; cnt[k] = (cnt[k] || 0) + 1; });
+      const desc = Object.entries(cnt).map(([k, q]) => `${q} × ${k}`).join("; ");
+      const segs = p.cuts.map(c => `<div class="seg" style="width:${c.len / g.stock * 100}%;background:${hue(c.len)}" title="${esc(c.tag)} ${m(c.len)} m">${m(c.len)}</div><div class="kerf"></div>`).join("");
+      const r = p.rem > 0 ? `<div class="seg rem ${p.rem >= g.minUse ? "use" : ""}" style="flex:1">${p.rem / g.stock > .08 ? m(p.rem) : ""}</div>` : "";
+      return `<div><div class="text-sm mb-1"><b>${p.n} bar${p.n > 1 ? "s" : ""}</b> <span class="muted">${esc(desc)}${p.rem > 0 ? " → off-cut " + m(p.rem) + " m" : ""}</span></div><div class="bar">${segs}${r}</div></div>`;
+    }).join("");
+    const offs = Object.entries(rc).sort((a, b) => b[0] - a[0]).map(([k, q]) => `${q} × ${m(+k)} m ${+k >= g.minUse ? "(usable)" : "(scrap)"}`).join(", ") || "none";
+    html += `<div class="space-y-3"><h3 class="font-bold">Ø${d} mm: ${n} bar${n > 1 ? "s" : ""} <span class="muted text-sm font-normal">(minimum ${lb}) · waste ${(waste / (n * g.stock) * 100).toFixed(1)}%</span></h3>${pats}<div class="text-sm"><b>Off-cuts:</b> ${offs}</div></div>`;
+  });
+  const st = (l, v, s) => `<div class="card"><div class="muted text-xs">${l}</div><div class="text-2xl font-bold">${v}</div><div class="muted text-xs">${s}</div></div>`;
+  $("stats").innerHTML = tB ? st("Stock bars needed", tB, "all diameters") + st("Total waste", (tW / tL * 100).toFixed(1) + "%", m(tW) + " m of " + m(tL) + " m") + st("Usable off-cuts", m(tUse) + " m", "≥ " + m(g.minUse) + " m each") + st("Steel to buy", tKg.toFixed(0) + " kg", "full bars") : "";
+  $("opt").innerHTML = sched.length ? html : '<p class="muted text-sm">Add bar marks to the schedule to generate the cutting plan.</p>';
+}
+// settings
+$("glob").innerHTML = G.map(([k, l]) => `<label class="block text-xs">${l}<input data-g="${k}" type="number" inputmode="decimal" step="any" min="0" class="inp mt-1" value="${g[k]}"></label>`).join("");
+$("glob").querySelectorAll("input").forEach(i => i.oninput = () => { g[i.dataset.g] = +i.value; calc(); renderSched(); });
+$("add").onclick = () => { rows.forEach(r => sched.push({ ...r })); save(); renderSched(); $("msg").textContent = `Added ${rows.length} bar marks.`; setTimeout(() => $("msg").textContent = "", 2500); };
+$("clear").onclick = () => { sched = []; save(); renderSched(); };
+buildTabs(); buildForm(); calc(); renderSched();
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+</script>
+</body>
+</html>
