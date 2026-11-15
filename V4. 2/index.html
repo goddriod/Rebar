@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#d9480f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Rebar Length Calculator v4.2</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#1b2430;--muted:#6b7686;--line:#dde1e7;--accent:#d9480f;--accent-t:#fff;--warn:#e03131;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181e;--card:#1e242c;--text:#e8ebef;--muted:#9aa5b4;--line:#323a45;--accent:#ff7a3d;--accent-t:#1a1206;--warn:#ff6b6b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14181e;--card:#1e242c;--text:#e8ebef;--muted:#9aa5b4;--line:#323a45;--accent:#ff7a3d;--accent-t:#1a1206;--warn:#ff6b6b;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.inp{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:16px}
+.inp:focus{outline:2px solid var(--accent)}
+.btn{border-radius:10px;padding:10px 14px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--text)}
+.btn-p{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.tab{flex:none;padding:10px 14px;font-weight:600;border-bottom:3px solid transparent;color:var(--muted);white-space:nowrap}
+.tab.on{color:var(--accent);border-color:var(--accent)}
+.muted{color:var(--muted)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+#sumTab th:nth-child(2),#sumTab td:nth-child(2){text-align:right}
+th{color:var(--muted);font-weight:600}
+.bar{display:flex;height:28px;border-radius:6px;overflow:hidden;background:var(--line)}
+.seg{display:flex;align-items:center;justify-content:center;font-size:11px;color:#111;overflow:hidden;border-right:1px solid rgba(0,0,0,.35);white-space:nowrap}
+.kerf{background:#000;width:1px;flex:none}
+.rem{background:repeating-linear-gradient(45deg,var(--card),var(--card) 4px,var(--line) 4px,var(--line) 8px);color:var(--muted)}
+.rem.use{background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(64,192,87,.45) 4px,rgba(64,192,87,.45) 8px);color:#40c057;font-weight:700}
+#report{display:none}
+@media print{.noprint{display:none!important}#report{display:block!important;color:#000;background:#fff;font-family:system-ui,sans-serif}body{background:#fff}
+#report table{font-size:10px;margin:8px 0}#report th,#report td{border:1px solid #999;padding:3px 5px;text-align:left;color:#000}}
+</style>
+</head>
+<body>
+<main class="noprint max-w-4xl mx-auto p-4 space-y-4">
+  <header class="flex items-baseline justify-between gap-2">
+    <div><h1 class="text-2xl font-bold">Rebar Length Calculator</h1>
+    <p class="muted text-sm">Projects, members, cut lengths and stock-bar plans. Dimensions in mm.</p></div>
+    <span class="text-xs font-bold px-2 py-1 rounded-full" style="background:var(--accent);color:var(--accent-t)">v4.2</span>
+  </header>
+
+  <section class="card space-y-2">
+    <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] gap-2">
+      <select id="pSel" class="inp" aria-label="Project"></select>
+      <input id="pName" class="inp" placeholder="Project name" aria-label="Project name">
+      <button id="pNew" class="btn">+ New project</button>
+      <button id="pDel" class="btn">Delete</button>
+    </div>
+    <details><summary class="text-sm font-semibold cursor-pointer">Settings (stock bar, kerf, laps)</summary>
+      <div id="glob" class="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-3"></div></details>
+    <details><summary class="text-sm font-semibold cursor-pointer">Backup &amp; restore</summary>
+      <div class="flex flex-wrap gap-2 mt-3 items-center"><button id="bkSave" class="btn">Save backup (file)</button>
+        <label class="btn cursor-pointer">Restore from file<input id="bkFile" type="file" accept=".json,application/json" class="hidden"></label><span id="bkMsg" class="text-xs muted"></span></div>
+      <p class="muted text-xs mt-2">Saves all projects and prices. Restoring adds the file’s projects as new projects; nothing is overwritten. Works when the app is opened from your own web link.</p></details>
+  </section>
+
+  <nav class="flex card !p-0 overflow-x-auto" id="tabs"></nav>
+
+  <section id="sForm" class="card space-y-3">
+    <h2 id="formTitle" class="font-bold"></h2>
+    <div id="form" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+    <p id="note" class="muted text-xs"></p>
+    <ul id="warn" class="text-xs space-y-1" style="color:var(--warn)"></ul>
+    <div class="tw"><table id="res"></table></div>
+    <div class="flex flex-wrap gap-2 items-center">
+      <button id="add" class="btn btn-p"></button>
+      <button id="cancel" class="btn hidden">Cancel edit</button>
+      <span id="msg" class="text-sm muted"></span>
+    </div>
+  </section>
+
+  <section id="sMem" class="card space-y-2">
+    <div class="flex justify-between items-center"><h2 id="memTitle" class="font-bold"></h2><button id="clr" class="btn text-sm">Clear tab</button></div>
+    <div id="memList"></div>
+  </section>
+
+  <section id="sPlan" class="card space-y-3">
+    <h2 class="font-bold" id="planTitle">Cutting plan</h2>
+    <div id="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+    <div id="opt" class="space-y-6"></div>
+    <p class="muted text-xs">Every cut length of this tab’s members is packed into stock bars per diameter (kerf included). Black ticks = saw cuts; hatched = remnant, green = usable off-cut. Weight = d²/162.2 kg/m.</p>
+  </section>
+
+  <section id="sSum" class="card space-y-3 hidden">
+    <div class="flex justify-between items-end gap-2"><h2 class="font-bold">Project summary: stock bars</h2><label class="text-xs">Currency<input id="sym" class="inp mt-1" style="width:84px" placeholder="e.g. ₦"></label></div>
+    <div class="tw"><table id="sumTab"></table></div>
+    <p class="muted text-xs">Enter the price of one stock bar for each diameter to see costs. Total bars = sum of each tab’s own cutting plan (e.g. 12 in Column + 7 in Beam = 19). “If packed together” = count if off-cuts were shared across tabs. ⚠ = a piece is longer than the stock bar.</p>
+    <div class="flex flex-wrap gap-2 items-center">
+      <button id="exPdf" class="btn btn-p">Print / Save as PDF</button>
+      <button id="exCsv" class="btn">Download Excel (CSV)</button>
+    </div>
+    <p id="exMsg" class="muted text-xs">Downloads and printing work when the app is opened from your own web link, not inside a preview.</p>
+  </section>
+  <p class="muted text-xs text-center">Rebar Length Calculator v4.2 · v4.1 added backup, warnings and prices · v4.0 added projects and members · v3.2 added the Summary tab · v2.0 added the bar tabs · v1.0 was the cut-list optimizer</p>
+</main>
+<div id="report"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const uid = () => Math.random().toString(36).slice(2, 9);
+const kgm = d => d * d / 162.2, m = x => (x / 1000).toFixed(2);
+const DEF_G = { stock: 12000, kerf: 3, ded: 2, lap: 40, hook: 10, minUse: 500 };
+const GL = [["stock", "Stock bar length"], ["kerf", "Saw kerf"], ["ded", "90° bend deduction (×d)"], ["lap", "Lap length (×d)"], ["hook", "Link hook length (×d)"], ["minUse", "Min. usable off-cut"]];
+function loadStore() {
+  try { const s = JSON.parse(localStorage.getItem("rebar_v4")); if (s && s.projects && s.cur && s.projects[s.cur]) return s; } catch (e) {}
+  const id = uid(); return { cur: id, g: {}, prices: {}, sym: "", projects: { [id]: { name: "My first project", members: [] } } };
+}
+let store = loadStore(); const g = Object.assign({}, DEF_G, store.g); store.g = g; store.prices = store.prices || {}; store.sym = store.sym || "";
+const save = () => { try { localStorage.setItem("rebar_v4", JSON.stringify(store)); } catch (e) {} };
+const P = () => store.projects[store.cur];
+
+// CONFIG
+const link = v => 2 * (v.b - 2 * v.c + v.h - 2 * v.c) + 2 * g.hook * v.dL - 3 * g.ded * v.dL;
+const nb = (len, sp, c) => Math.floor((len - 2 * c) / sp) + 1;
+const linkCount = (L, sp, z, zsp) => { if (!(z > 0 && zsp > 0 && zsp < sp)) return Math.ceil(L / sp) + 1; if (L <= 2 * z) return Math.ceil(L / zsp) + 1; return 2 * Math.ceil(z / zsp) + Math.ceil((L - 2 * z) / sp) + 1; };
+const zf = [["zone", "End-zone length (0 = none)", 0], ["zsp", "End-zone link spacing", 100]];
+const beamF = [["L", "Beam length (c/c incl. supports)", 4000], ["b", "Width", 230], ["h", "Depth", 450], ["c", "Cover", 25],
+  ["nT", "Top bars", 2], ["dT", "Top dia", 12], ["nB", "Bottom bars", 3], ["dB", "Bottom dia", 16], ["bend", "End bend length", 300],
+  ["nX", "Extra bars / support", 2], ["dX", "Extra bar dia", 16], ["lenX", "Extra bar length", 1500], ["sup", "No. of supports", 2],
+  ["dL", "Link dia", 8], ["sp", "Link spacing", 150], ...zf,
+  ["nT2", "Top bars, group 2 (0 = none)", 0], ["dT2", "Group 2 top dia", 16], ["nB2", "Bottom bars, group 2 (0 = none)", 0], ["dB2", "Group 2 bottom dia", 16]];
+const beamCalc = v => [
+  { desc: "Top bars", dia: v.dT, per: v.nT, len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dT },
+  { desc: "Bottom bars", dia: v.dB, per: v.nB, len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dB },
+  { desc: "Extra support bars", dia: v.dX, per: v.nX * v.sup, len: v.lenX },
+  { desc: "Top bars (group 2)", dia: v.dT2, per: v.nT2 || 0, len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dT2 },
+  { desc: "Bottom bars (group 2)", dia: v.dB2, per: v.nB2 || 0, len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dB2 },
+  { desc: "Links", dia: v.dL, per: linkCount(v.L, v.sp, v.zone, v.zsp), len: link(v) }];
+const beamNote = "Top/bottom bars = length − covers + 2 end bends − 2 bend deductions. Extra support bars are straight at the length you enter. End zones give closer links at both ends. Bars longer than the stock bar are lapped automatically.";
+const T = {
+  Base: { note: "Bottom mat bars are bent up at both ends. Starter bar = (depth − cover − 2 mat bars) + neck height + projection + foot, less one bend deduction. Neck height = footing top to neck top (about DPC).",
+    f: [["label", "Footing mark", "F1"], ["qty", "No. of footings", 1], ["L", "Length", 1500], ["B", "Width", 1500], ["D", "Depth", 450], ["c", "Cover", 50],
+      ["dM", "Mat bar dia", 16], ["sp", "Mat spacing", 150], ["bend", "Bend-up length (each end)", 300],
+      ["nS", "Starter bars / column", 8], ["dS", "Starter dia", 16], ["neck", "Neck height", 600], ["proj", "Projection above neck", 800], ["foot", "Starter foot (bend) length", 300]],
+    calc: v => [
+      { desc: "Bars along length", dia: v.dM, per: nb(v.B, v.sp, v.c), len: v.L - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dM },
+      { desc: "Bars along width", dia: v.dM, per: nb(v.L, v.sp, v.c), len: v.B - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dM },
+      { desc: "Column starter bars", dia: v.dS, per: v.nS, len: v.D - v.c - 2 * v.dM + v.neck + v.proj + v.foot - g.ded * v.dS }] },
+  Column: { note: "Main bar = height + lap + extra projection + foot (if any) − bend deduction. Link = 2(A+B) + 2 hooks − 3 bend deductions; count = height ÷ spacing + 1.",
+    f: [["label", "Column mark", "C1"], ["qty", "No. of columns", 1], ["b", "Length", 230], ["h", "Width", 230], ["H", "Height", 3000], ["c", "Cover", 25],
+      ["n", "Main bars", 6], ["dM", "Main bar dia", 16], ["n2", "Main bars, group 2 (0 = none)", 0], ["dM2", "Group 2 dia", 16], ["foot", "Bottom foot length (0 = none)", 0], ["proj", "Extra projection at top", 0],
+      ["dL", "Link dia", 8], ["sp", "Link spacing", 150], ...zf],
+    calc: v => [
+      { desc: "Main bars", dia: v.dM, per: v.n, len: v.H + g.lap * v.dM + v.proj + v.foot - (v.foot > 0 ? g.ded * v.dM : 0) },
+      { desc: "Main bars (group 2)", dia: v.dM2, per: v.n2 || 0, len: v.H + g.lap * v.dM2 + v.proj + v.foot - (v.foot > 0 ? g.ded * v.dM2 : 0) },
+      { desc: "Links", dia: v.dL, per: linkCount(v.H, v.sp, v.zone, v.zsp), len: link(v) }] },
+  "Ground Beam": { note: beamNote, f: [["label", "Ground beam mark", "GB1"], ["qty", "No. of ground beams", 1], ...beamF], calc: beamCalc },
+  Beam: { note: beamNote, f: [["label", "Beam mark", "B1"], ["qty", "No. of beams", 1], ...beamF], calc: beamCalc },
+  Slab: { note: "Main bars span the short side with end bends; distribution bars are straight. Set top spacing to 0 for no top mesh.",
+    f: [["label", "Slab mark", "S1"], ["qty", "No. of slabs", 1], ["Lx", "Long side", 5000], ["Ly", "Short side", 4000], ["c", "Cover", 20],
+      ["dM", "Main bar dia", 12], ["spM", "Main spacing", 150], ["bend", "Main bar end bend", 150], ["dD", "Distribution dia", 10], ["spD", "Distribution spacing", 200],
+      ["dT", "Top mesh dia", 10], ["spT", "Top mesh spacing (0 = none)", 0]],
+    calc: v => {
+      const r = [{ desc: "Main bars", dia: v.dM, per: nb(v.Lx, v.spM, v.c), len: v.Ly - 2 * v.c + 2 * v.bend - 2 * g.ded * v.dM },
+        { desc: "Distribution bars", dia: v.dD, per: nb(v.Ly, v.spD, v.c), len: v.Lx - 2 * v.c }];
+      if (v.spT > 0) r.push({ desc: "Top mesh (long side)", dia: v.dT, per: nb(v.Ly, v.spT, v.c), len: v.Lx - 2 * v.c },
+        { desc: "Top mesh (short side)", dia: v.dT, per: nb(v.Lx, v.spT, v.c), len: v.Ly - 2 * v.c });
+      return r;
+    } },
+  Lintel: { note: "Top and bottom bars run the full length less covers. Links = length ÷ spacing + 1.",
+    f: [["label", "Lintel mark", "L1"], ["qty", "No. of lintels", 1], ["L", "Length (opening + bearings)", 1500], ["b", "Width", 230], ["h", "Depth", 225], ["c", "Cover", 25],
+      ["nT", "Top bars", 2], ["dT", "Top dia", 12], ["nB", "Bottom bars", 2], ["dB", "Bottom dia", 12], ["dL", "Link dia", 8], ["sp", "Link spacing", 200]],
+    calc: v => [
+      { desc: "Top bars", dia: v.dT, per: v.nT, len: v.L - 2 * v.c },
+      { desc: "Bottom bars", dia: v.dB, per: v.nB, len: v.L - 2 * v.c },
+      { desc: "Links", dia: v.dL, per: Math.ceil(v.L / v.sp) + 1, len: link(v) }] },
+  Stairs: { note: "Sloping length = √(going² + rise²). Main bars = sloping length + anchorage at both ends − bend deductions; distribution bars run across the width.",
+    f: [["label", "Stair mark", "ST1"], ["qty", "No. of flights", 1], ["go", "Going (horizontal length)", 3000], ["rise", "Total rise", 1650], ["w", "Stair width", 1200], ["c", "Cover", 20],
+      ["dM", "Main bar dia", 12], ["spM", "Main spacing", 150], ["anc", "Anchorage into landing (each end)", 300], ["dD", "Distribution dia", 10], ["spD", "Distribution spacing", 200]],
+    calc: v => { const inc = Math.hypot(v.go, v.rise); return [
+      { desc: "Main bars (waist)", dia: v.dM, per: nb(v.w, v.spM, v.c), len: inc + 2 * v.anc - 2 * g.ded * v.dM },
+      { desc: "Distribution bars", dia: v.dD, per: Math.floor(inc / v.spD) + 1, len: v.w - 2 * v.c }]; } },
+  Wall: { note: "Vertical bars = height + foot into the base − bend deduction. Horizontal bars run the wall length less covers. Both are counted per face.",
+    f: [["label", "Wall mark", "W1"], ["qty", "No. of wall panels", 1], ["L", "Wall length", 5000], ["H", "Wall height", 2000], ["c", "Cover", 40], ["faces", "Faces with bars (1 or 2)", 2],
+      ["dV", "Vertical bar dia", 12], ["spV", "Vertical spacing", 200], ["foot", "Foot into base (bend)", 400], ["dHz", "Horizontal bar dia", 10], ["spHz", "Horizontal spacing", 200]],
+    calc: v => [
+      { desc: "Vertical bars", dia: v.dV, per: v.faces * nb(v.L, v.spV, v.c), len: v.H + v.foot - g.ded * v.dV },
+      { desc: "Horizontal bars", dia: v.dHz, per: v.faces * (Math.floor((v.H - v.c) / v.spHz) + 1), len: v.L - 2 * v.c }] }
+};
+const splitLong = r => { const lapL = g.lap * r.dia, S = g.stock;
+  if (!(r.len > S) || !(lapL > 0) || lapL >= S / 2) return [r];
+  const p = Math.ceil((r.len - lapL) / (S - lapL)), last = r.len + (p - 1) * lapL - (p - 1) * S;
+  return [{ ...r, desc: r.desc + " (lapped, full piece)", len: S, qty: r.qty * (p - 1) }, { ...r, desc: r.desc + " (lapped, end piece)", len: last }]; };
+const rowsFor = mb => { const v = mb.vals, q = v.qty || 1;
+  return T[mb.tab].calc(v).filter(r => r.per > 0 && r.len > 0 && r.dia > 0)
+    .map((r, i) => ({ ...r, mark: v.label + "-" + (i + 1), qty: r.per * q, tab: mb.tab, label: v.label })).flatMap(splitLong); };
+function pack(order, cap, mode) {
+  const bins = [];
+  for (const it of order) {
+    let b = -1, br = 1e18;
+    for (let i = 0; i < bins.length; i++) { const rm = cap - bins[i].used; if (rm >= it.size - 1e-9) { if (mode === "ff") { b = i; break; } if (rm < br) { br = rm; b = i; } } }
+    if (b < 0) { bins.push({ used: 0, items: [] }); b = bins.length - 1; }
+    bins[b].used += it.size; bins[b].items.push(it);
+  }
+  return bins;
+}
+function optimize(items, cap) {
+  const s = [...items].sort((a, b) => b.len - a.len); let best = null, bs = 1e30;
+  const t = (o, md) => { const b = pack(o, cap, md), sc = b.length * 1e12 - b.reduce((a, x) => a + (cap - x.used) ** 2, 0); if (sc < bs) { bs = sc; best = b; } };
+  t(s, "ff"); t(s, "bf");
+  const n = Math.min(300, Math.floor(40000 / s.length));
+  for (let i = 0; i < n; i++) t(s.map(x => ({ x, k: x.len * (1 + Math.random() * .2) })).sort((a, b) => b.k - a.k).map(o => o.x), i % 2 ? "bf" : "ff");
+  return best;
+}
+// END CONFIG
+
+const hue = len => `hsl(${([...String(Math.round(len))].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7) * 47) % 360} 70% 70%)`;
+let cur = "Base", editId = null, forms = {}, mt = 0;
+const defs = () => Object.fromEntries(T[cur].f.map(([k, , d]) => [k, d])), fv = () => forms[cur] || (forms[cur] = defs());
+const nextLabel = l => /\d+$/.test(l) ? String(l).replace(/\d+$/, n => +n + 1) : l + "2";
+const flash = t => { $("msg").textContent = t; clearTimeout(mt); mt = setTimeout(() => $("msg").textContent = "", 2500); };
+const confirmTap = (btn, label, fn) => { btn.onclick = () => {
+  if (btn.dataset.armed) { clearTimeout(+btn.dataset.armed); delete btn.dataset.armed; btn.textContent = label; fn(); }
+  else { btn.textContent = "Tap again to confirm"; btn.dataset.armed = setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 3000); } }; };
+
+function renderProj() {
+  $("pSel").innerHTML = Object.entries(store.projects).map(([id, p]) => `<option value="${id}" ${id === store.cur ? "selected" : ""}>${esc(p.name || "Untitled")}</option>`).join("");
+  $("pName").value = P().name;
+}
+function renderTabs() {
+  $("tabs").innerHTML = [...Object.keys(T), "Summary"].map(k => `<button class="tab ${k === cur ? "on" : ""}" data-t="${k}">${k}</button>`).join("");
+  $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { cur = b.dataset.t; editId = null; renderAll(); });
+}
+function renderForm() {
+  const v = fv();
+  $("formTitle").textContent = (editId ? "Editing " : "New ") + cur + " member";
+  $("form").innerHTML = T[cur].f.map(([id, lab]) =>
+    `<label class="block text-xs">${lab}<input data-id="${id}" class="inp mt-1" ${id === "label" ? 'type="text"' : 'type="number" inputmode="decimal" min="0" step="any"'} value="${esc(v[id])}"></label>`).join("");
+  $("form").querySelectorAll("input").forEach(i => i.oninput = () => { v[i.dataset.id] = i.dataset.id === "label" ? i.value : +i.value; calcForm(); });
+  $("note").textContent = T[cur].note;
+  $("add").textContent = editId ? "Update member" : "Add member to project";
+  $("cancel").classList.toggle("hidden", !editId);
+  calcForm();
+}
+const SIZES = [6, 8, 10, 12, 16, 20, 25, 32, 40];
+const DIMS = { Base: v => v.D, Column: v => Math.min(v.b, v.h), "Ground Beam": v => Math.min(v.b, v.h), Beam: v => Math.min(v.b, v.h), Lintel: v => Math.min(v.b, v.h) };
+function warnings(tab, v) {
+  const w = [], i = [];
+  T[tab].f.forEach(([k, l]) => { if (k === "label") return; const x = v[k]; if (!(x >= 0)) w.push(`${l}: enter a number of 0 or more.`); else if (/^sp/.test(k) && k !== "spT" && x === 0) w.push(`${l} cannot be 0.`); });
+  const dim = DIMS[tab] && DIMS[tab](v); if (dim > 0 && 2 * v.c >= dim) w.push("Cover is too large for this member size.");
+  T[tab].calc(v).forEach(r => {
+    if (r.per > 0 && r.dia > 0 && !SIZES.includes(r.dia)) w.push(`Ø${r.dia} is not a common bar size (${SIZES.join(", ")}).`);
+    if (r.per > 0 && r.len <= 0) w.push(`${r.desc}: cut length is zero or negative. Check the dimensions.`);
+    else if (r.per > 0 && r.len > g.stock) i.push(`${r.desc}: ${m(r.len)} m is longer than the stock bar, so it is split into lapped pieces (${g.lap}d lap each joint).`);
+  });
+  return { w: [...new Set(w)], i: [...new Set(i)] };
+}
+function calcForm() {
+  const v = fv(), rs = rowsFor({ tab: cur, vals: v }), W = warnings(cur, v);
+  $("warn").innerHTML = W.w.map(t => `<li>⚠ ${esc(t)}</li>`).join("") + W.i.map(t => `<li class="muted">ℹ ${esc(t)}</li>`).join("");
+  const tl = rs.reduce((a, r) => a + r.qty * r.len / 1000, 0), tw = rs.reduce((a, r) => a + r.qty * r.len / 1000 * kgm(r.dia), 0);
+  $("res").innerHTML = `<tr><th>Mark</th><th>Description</th><th>Ø</th><th>Qty</th><th>Cut length (m)</th><th>Total (m)</th><th>kg</th></tr>` +
+    rs.map(r => `<tr><td>${esc(r.mark)}</td><td>${r.desc}</td><td>${r.dia}</td><td>${r.qty}</td><td>${m(r.len)}</td><td>${(r.qty * r.len / 1000).toFixed(1)}</td><td>${(r.qty * r.len / 1000 * kgm(r.dia)).toFixed(1)}</td></tr>`).join("") +
+    `<tr style="font-weight:700"><td colspan="5">Total for ${esc(v.label)} × ${v.qty || 1}</td><td>${tl.toFixed(1)}</td><td>${tw.toFixed(1)}</td></tr>`;
+}
+function renderMembers() {
+  const ms = P().members.filter(x => x.tab === cur);
+  $("memTitle").textContent = cur + " members in this project (" + ms.length + ")";
+  $("memList").innerHTML = ms.length ? ms.map(x => { const rs = rowsFor(x), kg = rs.reduce((a, r) => a + r.qty * r.len / 1000 * kgm(r.dia), 0), cost = rs.reduce((a, r) => a + r.qty * r.len / 1000 * kgm(r.dia) * pkg(r.dia), 0);
+    return `<div class="flex items-center gap-2 py-2 border-b" style="border-color:var(--line)"><div class="flex-1 min-w-0"><b>${esc(x.vals.label)}</b> × ${x.vals.qty || 1}<div class="muted text-xs">${rs.length} bar marks · ${kg.toFixed(0)} kg${cost > 0 ? " · est. " + money(cost) : ""}</div></div>
+      <button class="btn !py-1 !px-2 text-sm" data-a="e" data-i="${x.id}">Edit</button><button class="btn !py-1 !px-2 text-sm" data-a="c" data-i="${x.id}">Copy</button><button class="btn !py-1 !px-2 text-sm" data-a="d" data-i="${x.id}">✕</button></div>`; }).join("")
+    : '<p class="muted text-sm">No members yet. Fill the form above and tap “Add member to project”.</p>';
+  $("memList").querySelectorAll("button").forEach(b => b.onclick = () => memAction(b.dataset.a, b.dataset.i));
+}
+function memAction(a, id) {
+  const ms = P().members, i = ms.findIndex(x => x.id === id); if (i < 0) return;
+  if (a === "d") { ms.splice(i, 1); if (editId === id) editId = null; }
+  else if (a === "c") ms.splice(i + 1, 0, { id: uid(), tab: ms[i].tab, vals: { ...ms[i].vals, label: nextLabel(ms[i].vals.label) } });
+  else { editId = id; forms[cur] = { ...defs(), ...ms[i].vals }; window.scrollTo({ top: 0, behavior: "smooth" }); }
+  save(); renderForm(); refresh();
+}
+function renderPlan() {
+  $("planTitle").textContent = cur + " cutting plan";
+  const all = P().members.filter(x => x.tab === cur).flatMap(rowsFor), by = {}; all.forEach(r => (by[r.dia] = by[r.dia] || []).push(r));
+  const cap = g.stock + g.kerf; let html = "", tB = 0, tW = 0, tL = 0, tUse = 0, tKg = 0;
+  Object.keys(by).sort((a, b) => a - b).forEach(d => {
+    const items = []; by[d].forEach(r => { for (let i = 0; i < r.qty; i++) items.push({ len: r.len, size: r.len + g.kerf, tag: r.label + " " + r.desc }); });
+    const bad = items.filter(i => i.len > g.stock);
+    if (bad.length) { html += `<div class="text-sm" style="color:var(--warn)">Ø${d}: ${bad.length} piece(s) are longer than the stock bar (${m(bad[0].len)} m). Add laps or raise the stock length.</div>`; return; }
+    const bins = optimize(items, cap), gr = new Map(), rc = {}; let cutSum = 0, use = 0;
+    bins.forEach(b => {
+      const cuts = [...b.items].sort((a, c) => c.len - a.len || (a.tag < c.tag ? -1 : 1));
+      const sum = cuts.reduce((a, c) => a + c.len, 0), free = cap - b.used, rem = free > g.kerf + 1e-6 ? free - g.kerf : 0;
+      cutSum += sum;
+      if (rem > 0) { const k = rem.toFixed(0); rc[k] = (rc[k] || 0) + 1; if (rem >= g.minUse) use += rem; }
+      const key = cuts.map(c => c.len + c.tag).join("|") + "#" + rem.toFixed(0);
+      if (!gr.has(key)) gr.set(key, { cuts, rem, n: 0 }); gr.get(key).n++;
+    });
+    const n = bins.length, lb = Math.ceil(items.reduce((a, i) => a + i.size, 0) / cap - 1e-9), waste = n * g.stock - cutSum;
+    tB += n; tW += waste; tL += n * g.stock; tUse += use; tKg += n * g.stock / 1000 * kgm(+d);
+    const pats = [...gr.values()].sort((a, b) => b.n - a.n).map(p => {
+      const cnt = {}; p.cuts.forEach(c => { const k = m(c.len) + " m · " + c.tag; cnt[k] = (cnt[k] || 0) + 1; });
+      const desc = Object.entries(cnt).map(([k, q]) => `${q} × ${k}`).join("; ");
+      const segs = p.cuts.map(c => `<div class="seg" style="width:${c.len / g.stock * 100}%;background:${hue(c.len)}" title="${esc(c.tag)} ${m(c.len)} m">${m(c.len)}</div><div class="kerf"></div>`).join("");
+      const r = p.rem > 0 ? `<div class="seg rem ${p.rem >= g.minUse ? "use" : ""}" style="flex:1">${p.rem / g.stock > .08 ? m(p.rem) : ""}</div>` : "";
+      return `<div><div class="text-sm mb-1"><b>${p.n} bar${p.n > 1 ? "s" : ""}</b> <span class="muted">${esc(desc)}${p.rem > 0 ? " → off-cut " + m(p.rem) + " m" : ""}</span></div><div class="bar">${segs}${r}</div></div>`;
+    }).join("");
+    const offs = Object.entries(rc).sort((a, b) => b[0] - a[0]).map(([k, q]) => `${q} × ${m(+k)} m ${+k >= g.minUse ? "(usable)" : "(scrap)"}`).join(", ") || "none";
+    html += `<div class="space-y-3"><h3 class="font-bold">Ø${d} mm: ${n} bar${n > 1 ? "s" : ""} <span class="muted text-sm font-normal">(minimum ${lb}) · waste ${(waste / (n * g.stock) * 100).toFixed(1)}%</span></h3>${pats}<div class="text-sm"><b>Off-cuts:</b> ${offs}</div></div>`;
+  });
+  const st = (l, v, s) => `<div class="card"><div class="muted text-xs">${l}</div><div class="text-2xl font-bold">${v}</div><div class="muted text-xs">${s}</div></div>`;
+  $("stats").innerHTML = tB ? st("Stock bars needed", tB, "all diameters") + st("Total waste", (tW / tL * 100).toFixed(1) + "%", m(tW) + " m of " + m(tL) + " m") + st("Usable off-cuts", m(tUse) + " m", "≥ " + m(g.minUse) + " m each") + st("Steel to buy", tKg.toFixed(0) + " kg", "full bars") : "";
+  $("opt").innerHTML = Object.keys(by).length ? html : '<p class="muted text-sm">Add members to this tab to generate its cutting plan.</p>';
+}
+function calcSummary() {
+  const tabs = Object.keys(T), cap = g.stock + g.kerf, all = P().members.flatMap(rowsFor);
+  const dias = [...new Set(all.map(r => r.dia))].sort((a, b) => a - b);
+  const cnt = list => { const it = []; list.forEach(r => { for (let i = 0; i < r.qty; i++) it.push({ len: r.len, size: r.len + g.kerf }); });
+    if (!it.length) return 0; if (it.some(i => i.len > g.stock)) return NaN; return optimize(it, cap).length; };
+  const rows = dias.map(d => { const rs = all.filter(r => r.dia === d); let tot = 0, bad = false;
+    const cells = tabs.map(t => { const n = cnt(rs.filter(r => r.tab === t)); if (n !== n) { bad = true; return NaN; } tot += n; return n; });
+    return { d, cells, tot: bad ? NaN : tot, kg: bad ? NaN : tot * g.stock / 1000 * kgm(d), pk: cnt(rs) }; });
+  return { tabs, rows };
+}
+const cell = c => c !== c ? "⚠" : (c || "–");
+const sym = () => store.sym || "", money = x => sym() + Math.round(x).toLocaleString();
+const pkg = d => { const p = +store.prices[d] || 0; return p > 0 ? p / (g.stock / 1000 * kgm(d)) : 0; };
+const costOf = r => { const p = +store.prices[r.d] || 0; return p > 0 && r.tot === r.tot ? r.tot * p : 0; };
+function renderSummary() {
+  const S = calcSummary();
+  if (!S.rows.length) { $("sumTab").innerHTML = '<tr><td class="muted">Add members to the tabs to see project totals.</td></tr>'; return; }
+  let h = `<tr><th>Ø (mm)</th>${S.tabs.map(t => `<th>${t}</th>`).join("")}<th>Total bars</th><th>Steel kg</th><th>If packed together</th><th>Price / bar</th><th>Cost</th></tr>`;
+  const col = S.tabs.map(() => 0); let gT = 0, gK = 0, gP = 0;
+  S.rows.forEach(r => { r.cells.forEach((c, i) => col[i] += c === c ? c : 0); if (r.tot === r.tot) { gT += r.tot; gK += r.kg; gP += r.pk; }
+    h += `<tr><td>${r.d}</td>${r.cells.map(c => `<td>${cell(c)}</td>`).join("")}<td><b>${r.tot !== r.tot ? "—" : r.tot}</b></td><td>${r.kg !== r.kg ? "—" : r.kg.toFixed(0)}</td><td>${r.pk !== r.pk ? "—" : r.pk}</td><td><input type="number" inputmode="decimal" min="0" step="any" data-p="${r.d}" class="inp" style="width:96px;padding:4px 6px" value="${store.prices[r.d] || ""}"></td><td id="c${r.d}"></td></tr>`; });
+  $("sumTab").innerHTML = h + `<tr style="font-weight:700"><td>All</td>${col.map(c => `<td>${c}</td>`).join("")}<td>${gT}</td><td>${gK.toFixed(0)}</td><td>${gP}</td><td></td><td id="cT"></td></tr>`;
+  const upd = () => { let t = 0; S.rows.forEach(r => { const c = costOf(r); t += c; $("c" + r.d).textContent = c ? money(c) : "–"; }); $("cT").textContent = t ? money(t) : "–"; };
+  upd(); $("sumTab").querySelectorAll("[data-p]").forEach(i => i.oninput = () => { store.prices[i.dataset.p] = +i.value; save(); upd(); });
+}
+function memberRows() { const order = Object.keys(T); return P().members.slice().sort((a, b) => order.indexOf(a.tab) - order.indexOf(b.tab)).flatMap(rowsFor); }
+function exportRows() { return memberRows().map(r => [r.label, r.tab, r.mark, r.desc, r.dia, r.qty, m(r.len), (r.qty * r.len / 1000).toFixed(1), (r.qty * r.len / 1000 * kgm(r.dia)).toFixed(1)]); }
+function summaryExport() { const S = calcSummary(); let tc = 0;
+  const rows = S.rows.map(r => { const c = costOf(r); tc += c; return [r.d, ...r.cells.map(cell), cell(r.tot), r.kg !== r.kg ? "—" : r.kg.toFixed(0), cell(r.pk), store.prices[r.d] || "", c ? money(c) : ""]; });
+  if (tc) rows.push(["Total", ...S.tabs.map(() => ""), "", "", "", "", money(tc)]);
+  return { head: ["Dia (mm)", ...S.tabs, "Total bars", "Steel kg", "If packed together", "Price / bar", "Cost"], rows }; }
+$("exPdf").onclick = () => {
+  const H = ["Member", "Type", "Mark", "Description", "Dia (mm)", "Qty", "Cut length (m)", "Total (m)", "kg"], S = summaryExport();
+  const tb = (h, rs) => `<table><tr>${h.map(x => `<th>${x}</th>`).join("")}</tr>${rs.map(r => `<tr>${r.map(x => `<td>${esc(x)}</td>`).join("")}</tr>`).join("")}</table>`;
+  $("report").innerHTML = `<h1 style="font-size:20px;font-weight:700">${esc(P().name)} – bar schedule</h1><p style="font-size:11px">${new Date().toLocaleDateString()} · stock bar ${m(g.stock)} m · kerf ${g.kerf} mm · Rebar Length Calculator v4.2</p><h2 style="font-weight:700;margin-top:10px">Cut lengths by member</h2>${tb(H, exportRows())}<h2 style="font-weight:700;margin-top:10px">Stock bars needed</h2>${tb(S.head, S.rows)}`;
+  try { window.print(); } catch (e) { $("exMsg").textContent = "Printing is not available here. Open the app from your own web link."; }
+};
+$("exCsv").onclick = () => {
+  const q = x => '"' + String(x).replace(/"/g, '""') + '"', S = summaryExport();
+  const lines = [[P().name], [], ["Member", "Type", "Mark", "Description", "Dia (mm)", "Qty", "Cut length (m)", "Total (m)", "kg"], ...exportRows(), [], S.head, ...S.rows];
+  try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.map(l => l.map(q).join(",")).join("\n")], { type: "text/csv" }));
+    a.download = (P().name || "project").replace(/[^\w-]+/g, "_") + "-rebar.csv"; document.body.appendChild(a); a.click(); a.remove(); }
+  catch (e) { $("exMsg").textContent = "Download is not available here. Open the app from your own web link."; }
+};
+function refresh() { if (cur === "Summary") renderSummary(); else { renderMembers(); renderPlan(); } }
+function renderAll() {
+  const sm = cur === "Summary";
+  ["sForm", "sMem", "sPlan"].forEach(i => $(i).classList.toggle("hidden", sm)); $("sSum").classList.toggle("hidden", !sm);
+  renderProj(); renderTabs(); if (!sm) renderForm(); refresh();
+}
+$("glob").innerHTML = GL.map(([k, l]) => `<label class="block text-xs">${l}<input data-g="${k}" type="number" inputmode="decimal" step="any" min="0" class="inp mt-1" value="${g[k]}"></label>`).join("");
+$("glob").querySelectorAll("input").forEach(i => i.oninput = () => { g[i.dataset.g] = +i.value; save(); if (cur !== "Summary") calcForm(); refresh(); });
+$("pSel").onchange = e => { store.cur = e.target.value; editId = null; forms = {}; save(); renderAll(); };
+$("pName").oninput = e => { P().name = e.target.value; const o = $("pSel").selectedOptions[0]; if (o) o.textContent = e.target.value || "Untitled"; save(); };
+$("pNew").onclick = () => { const id = uid(); store.projects[id] = { name: "Project " + (Object.keys(store.projects).length + 1), members: [] }; store.cur = id; editId = null; forms = {}; save(); renderAll(); };
+confirmTap($("pDel"), "Delete", () => { if (Object.keys(store.projects).length > 1) { delete store.projects[store.cur]; store.cur = Object.keys(store.projects)[0]; } else { P().members = []; P().name = "My project"; } editId = null; forms = {}; save(); renderAll(); });
+confirmTap($("clr"), "Clear tab", () => { P().members = P().members.filter(x => x.tab !== cur); editId = null; save(); renderForm(); refresh(); });
+$("add").onclick = () => {
+  const v = { ...fv() }; if (!String(v.label).trim()) { flash("Enter a mark name."); return; }
+  if (editId) { const x = P().members.find(y => y.id === editId); if (x) x.vals = v; flash("Updated " + v.label); editId = null; }
+  else { P().members.push({ id: uid(), tab: cur, vals: v }); forms[cur].label = nextLabel(v.label); flash("Added " + v.label); }
+  save(); renderForm(); refresh();
+};
+$("cancel").onclick = () => { editId = null; delete forms[cur]; renderForm(); };
+$("sym").value = store.sym; $("sym").oninput = e => { store.sym = e.target.value; save(); renderSummary(); };
+$("bkSave").onclick = () => {
+  try { const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: "rebar", v: 4, projects: store.projects, prices: store.prices, sym: store.sym }, null, 1)], { type: "application/json" }));
+    a.download = "rebar-backup-" + new Date().toISOString().slice(0, 10) + ".json"; document.body.appendChild(a); a.click(); a.remove(); $("bkMsg").textContent = "Backup saved to your downloads."; }
+  catch (e) { $("bkMsg").textContent = "Download not available here. Open the app from your own web link."; }
+};
+$("bkFile").onchange = e => {
+  const f = e.target.files[0]; if (!f) return; const r = new FileReader();
+  r.onload = () => { try { const d = JSON.parse(r.result); if (!d || !d.projects) throw 0; let n = 0;
+    Object.values(d.projects).forEach(p => { if (!p || !Array.isArray(p.members)) return; const id = uid();
+      store.projects[id] = { name: (p.name || "Project") + " (restored)", members: p.members.filter(x => x && T[x.tab] && x.vals).map(x => ({ id: uid(), tab: x.tab, vals: x.vals })) }; store.cur = id; n++; });
+    if (!n) throw 0; if (d.prices) Object.assign(store.prices, d.prices); save(); forms = {}; editId = null; renderAll(); $("bkMsg").textContent = "Restored " + n + " project(s)."; }
+    catch (x) { $("bkMsg").textContent = "That file is not a valid backup."; } };
+  r.readAsText(f); e.target.value = "";
+};
+renderAll();
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+</script>
+</body>
+</html>
